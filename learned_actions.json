@@ -1,0 +1,29 @@
+{
+  "mute my macbook": {
+    "type": "applescript",
+    "payload": {
+      "script": "set volume output muted true"
+    },
+    "reply": "Muted your MacBook, sir.",
+    "learned_at": 1790704509.018899,
+    "hit_count": 1
+  },
+  "open vs code": {
+    "type": "open_app",
+    "payload": {
+      "app_name": "Visual Studio Code"
+    },
+    "reply": "Opening Visual Studio Code, sir.",
+    "learned_at": 1790704602.461876,
+    "hit_count": 1
+  },
+  "open the current default browser": {
+    "type": "open_url",
+    "payload": {
+      "url": "https://www.thecurrentdefaultbrowser.com"
+    },
+    "reply": "Opening The Current Default Browser in your browser, sir.",
+    "learned_at": 1790871451.2460978,
+    "hit_count": 1
+  }
+}
