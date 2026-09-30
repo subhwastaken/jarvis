@@ -1,0 +1,62 @@
+# Virtual Environment
+.venv
+.venv/
+venv/
+env/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# macOS metadata & artifacts
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+Icon?
+Network Trash Folder
+Temporary Items
+
+# Windows artifacts
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Environment, secrets & local configs
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Cache & logs
+cache/
+*.log
+*.tmp
+*.wav
+*.mp3
+*.docx
+
+# Assets & build outputs
+assets/icon.iconset/
+target/
+jarvis_core/target/
+
+# IDE & Editor configs
+.idea/
+.vscode/
+*.swp
+*~
+*.bak
+
