@@ -257,17 +257,26 @@ class AppDelegate(NSObject):
     @objc.python_method
     def on_audio_level(self, level):
         now = time.time()
-        if now - getattr(self, "_last_lvl_time", 0.0) < 0.04:
+        if now - getattr(self, "_last_lvl_time", 0.0) < 0.035:
             return
         self._last_lvl_time = now
+        if isinstance(level, (list, tuple)) and len(level) == 4:
+            payload = [round(float(x), 2) for x in level]
+        else:
+            fl = round(float(level), 2)
+            payload = [fl, fl, fl, fl]
         self.performSelectorOnMainThread_withObject_waitUntilDone_(
-            "updateAudioLevelOnMain:", float(level), False
+            "updateAudioLevelOnMain:", payload, False
         )
 
-    def updateAudioLevelOnMain_(self, level_num):
+    def updateAudioLevelOnMain_(self, levels):
         if getattr(self, "current_state", "") == "Listening":
             if getattr(self, "notch_webview", None):
-                js = f"updateAudioLevel({float(level_num):.2f});"
+                if isinstance(levels, (list, tuple)) and len(levels) == 4:
+                    js = f"updateAudioLevel({levels[0]}, {levels[1]}, {levels[2]}, {levels[3]});"
+                else:
+                    fl = float(levels) if isinstance(levels, (int, float)) else 0.0
+                    js = f"updateAudioLevel({fl}, {fl}, {fl}, {fl});"
                 self.notch_webview.evaluateJavaScript_completionHandler_(js, None)
 
     @objc.python_method
@@ -333,9 +342,10 @@ class AppDelegate(NSObject):
         saved = NSUserDefaults.standardUserDefaults().objectForKey_("enable_notch")
         self.notch_enabled = True if saved is None else NSUserDefaults.standardUserDefaults().boolForKey_("enable_notch")
 
-        pill_w, pill_h = 290, 52
+        # Exact macOS menu bar height (25px) docked at top center
+        pill_w, pill_h = 165, 25
         x = screen.origin.x + (screen.size.width - pill_w) / 2
-        y = screen.origin.y + screen.size.height - pill_h - 6
+        y = screen.origin.y + screen.size.height - pill_h
 
         self.notch_window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(x, y, pill_w, pill_h),

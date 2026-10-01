@@ -255,3 +255,73 @@ def perform_calculator_operation(expression: str) -> str:
     except Exception:
         return f"Opened Calculator and entered {math_chars}=, sir."
 
+
+def get_active_page_text(max_chars: int = 4000) -> str | None:
+    """Extract visible body text from the active browser tab via JavaScript.
+
+    Uses document.body.innerText which returns readable text nodes only,
+    stripping all HTML, scripts, and styles. Returns None if no browser
+    is active or JavaScript from Apple Events is blocked.
+    """
+    browser = get_frontmost_browser()
+    if not browser:
+        return None
+
+    js = (
+        "(() => {"
+        "  const t = (document.body && document.body.innerText) || '';"
+        "  const clean = t.replace(/\\n{3,}/g, '\\n\\n').trim();"
+        f"  return clean.substring(0, {max_chars});"
+        "})()"
+    )
+    clean_js = js.replace('"', '\\"')
+
+    try:
+        if browser in ["Google Chrome", "Brave Browser", "Microsoft Edge", "Arc"]:
+            script = f'tell application "{browser}" to execute front window\'s active tab javascript "{clean_js}"'
+        elif browser == "Safari":
+            script = f'tell application "Safari" to do JavaScript "{clean_js}" in front document'
+        else:
+            return None
+
+        res = subprocess.check_output(
+            ["osascript", "-e", script],
+            stderr=subprocess.DEVNULL, text=True, timeout=5
+        ).strip()
+        return res if res else None
+    except Exception:
+        return None
+
+
+def get_active_page_url() -> str | None:
+    """Return the URL of the currently active browser tab."""
+    browser = get_frontmost_browser()
+    if not browser:
+        return None
+    try:
+        if browser in ["Google Chrome", "Brave Browser", "Microsoft Edge", "Arc"]:
+            script = f'tell application "{browser}" to get URL of active tab of front window'
+        elif browser == "Safari":
+            script = 'tell application "Safari" to get URL of front document'
+        else:
+            return None
+        res = subprocess.check_output(
+            ["osascript", "-e", script],
+            stderr=subprocess.DEVNULL, text=True, timeout=3
+        ).strip()
+        return res if res else None
+    except Exception:
+        return None
+
+
+def paste_into_frontmost_app() -> bool:
+    """Send Cmd+V to whatever app is currently frontmost (e.g. Google Docs, Notes, TextEdit)."""
+    try:
+        subprocess.run(
+            ["osascript", "-e",
+             'tell application "System Events" to keystroke "v" using {command down}'],
+            check=True, timeout=3
+        )
+        return True
+    except Exception:
+        return False

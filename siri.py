@@ -29,7 +29,8 @@ from action_dispatcher import (
 from audio_engine import (
     say, speak, stop_speaking, is_speaking,
     transcribe_audio_buffer, clean_transcription,
-    fetch_neural_tts, fetch_fish_tts, AudioRecorder
+    fetch_neural_tts, AudioRecorder,
+    prefetch_tts,
 )
 from hotkey_manager import HotkeyManager, PTT_KEY
 from secrets_store import get_secret, reload_secrets
@@ -112,6 +113,8 @@ def handle(text: str, stt_ms=None, notify=None):
 
     final_reply = " ".join(r.strip() for r in replies if r.strip())
     if final_reply:
+        # Prefetch TTS audio in background immediately — eliminates voice-start lag
+        prefetch_tts(final_reply)
         say(final_reply, notify=notify)
         add_turn(clean, final_reply)
         if notify:
@@ -238,8 +241,13 @@ def main():
     args = parser.parse_args()
 
     if args.ui:
-        from assistant_ui import run_app
-        run_app()
+        if sys.platform == "darwin":
+            from assistant_ui import run_app
+            run_app()
+        else:
+            from jarvis_hud import get_hud, update_hud
+            get_hud()
+            run_voice_assistant(mode="wake" if args.wake else "ptt", notify=update_hud)
         return
 
     if args.text:

@@ -26,31 +26,70 @@ def get_active_browser():
     return None
 
 
-def play_youtube(query):
+import sys
+
+
+def play_youtube(query, browser=None):
     clean_query = query.strip(" '\"`")
     encoded = urllib.parse.quote_plus(clean_query)
     url = f"https://www.youtube.com/results?search_query={encoded}"
     
-    # Launch browser in a background thread promptly
     def _open():
         time.sleep(0.1)
-        subprocess.run(["open", url])
+        if browser and sys.platform == "darwin":
+            b_clean = browser.lower().strip()
+            app_target = None
+            if "chrome" in b_clean:
+                app_target = "Google Chrome"
+            elif "safari" in b_clean:
+                app_target = "Safari"
+            elif "brave" in b_clean:
+                app_target = "Brave Browser"
+            elif "firefox" in b_clean:
+                app_target = "Firefox"
+            elif "edge" in b_clean:
+                app_target = "Microsoft Edge"
+            elif "arc" in b_clean:
+                app_target = "Arc"
+            if app_target:
+                subprocess.run(["open", "-a", app_target, url])
+                return
+        subprocess.run(["open", url] if sys.platform == "darwin" else ["cmd", "/c", "start", url])
     
     threading.Thread(target=_open, daemon=True).start()
     return f"Right away, sir. Opening YouTube for {clean_query}."
 
 
-def search_google_browser(query):
+def search_google_browser(query, browser=None):
     clean_query = query.strip(" '\"`")
     encoded = urllib.parse.quote_plus(clean_query)
     url = f"https://www.google.com/search?q={encoded}"
     
     def _open():
         time.sleep(0.1)
-        subprocess.run(["open", url])
+        if browser and sys.platform == "darwin":
+            b_clean = browser.lower().strip()
+            app_target = None
+            if "chrome" in b_clean:
+                app_target = "Google Chrome"
+            elif "safari" in b_clean:
+                app_target = "Safari"
+            elif "brave" in b_clean:
+                app_target = "Brave Browser"
+            elif "firefox" in b_clean:
+                app_target = "Firefox"
+            elif "edge" in b_clean:
+                app_target = "Microsoft Edge"
+            elif "arc" in b_clean:
+                app_target = "Arc"
+            if app_target:
+                subprocess.run(["open", "-a", app_target, url])
+                return
+        subprocess.run(["open", url] if sys.platform == "darwin" else ["cmd", "/c", "start", url])
         
     threading.Thread(target=_open, daemon=True).start()
-    return f"Searching Google for {clean_query}, sir."
+    b_msg = f" in {browser.title()}" if browser and browser.lower() not in ("google", "browser", "the web") else ""
+    return f"Searching Google for {clean_query}{b_msg}, sir."
 
 
 def open_website(url):

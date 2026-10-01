@@ -42,11 +42,11 @@ class MacCocoaHUD(BaseHUD):
             if not screen:
                 return
             sf = screen.frame()
-            pill_w = 270.0
-            pill_h = 38.0
-            # Position at top center, 12px below top of screen
+            pill_w = 165.0
+            pill_h = 25.0
+            # Position at exact macOS menubar height at top center
             x = (sf.size.width - pill_w) / 2.0
-            y = sf.size.height - pill_h - 12.0
+            y = sf.size.height - pill_h
 
             style_mask = 1 << 7  # NSWindowStyleMaskBorderless
             self.panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(

@@ -1,9 +1,10 @@
 """Audio and Neural Speech Engine for J.A.R.V.I.S.
 Handles:
-1. Low-latency local audio capture via sounddevice with peak normalization (preventing DAC 384kHz clipping).
+1. Low-latency local audio capture via sounddevice with peak normalization.
 2. Offline Speech-to-Text via faster-whisper (small.en) with hallucination suppression.
-3. Expressive Neural TTS via Fish Audio & Edge-TTS (Ryan/Sonia British voices) with local disk caching.
+3. Expressive Neural TTS via Edge-TTS (Ryan/Sonia British voices) with local disk caching.
 4. Thread-safe speech playback and instant interruption handling.
+5. Cross-platform: macOS (afplay/say) + Windows (pyttsx3/winsound/playsound).
 """
 import collections
 import hashlib
@@ -11,25 +12,25 @@ import os
 import queue
 import re
 import subprocess
+import sys
 import threading
 import time
 import warnings
 import numpy as np
-import requests
 import sounddevice as sd
 
-from secrets_store import get_secret
 from jarvis_memory import get_voice, VOICE_MALE, VOICE_FEMALE
 
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="faster_whisper")
+
+IS_MAC = sys.platform == "darwin"
+IS_WIN = sys.platform.startswith("win")
 
 SAMPLE_RATE = 16000
 BLOCK_SIZE = 800  # 50ms at 16kHz for 20 FPS real-time speech visualizer
 WHISPER_MODEL_NAME = "small.en"
 MACOS_VOICE = os.getenv("MACOS_VOICE", "Daniel")
-VOICE_ID = "9a9cf47702da476aa4629e2506d4a857"
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "tts")
 NEURAL_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "tts_neural")
 
 CURRENT_AUDIO_PROC = None
@@ -86,7 +87,8 @@ def clean_transcription(text: str) -> str:
     subs = [
         (r"\b(?:you\s+tube|yout\s+tube|u\s+tube|your\s+tube)\b", "youtube"),
         (r"\bgoggle\b", "google"),
-        (r"\bserch\b", "search"),
+        (r"\b(?:soj|surch|serch)\b", "search"),
+        (r"\bwhat\s+s\s+up\b", "what's up"),
         (r"\bsomehting\b", "something"),
         (r"\bbroswer\b", "browser"),
         (r"\bchrone\b", "chrome"),
@@ -142,9 +144,20 @@ def transcribe_audio_buffer(audio_array: np.ndarray) -> tuple[str, int]:
 
 
 # --------------------------------------------------------------------------- Neural TTS
+_INTERRUPT_EVENT = threading.Event()
+
+
 def stop_speaking() -> bool:
-    """Instantly terminate any playing speech process."""
+    """Instantly terminate any playing speech process and cancel pending queued audio."""
     global CURRENT_AUDIO_PROC
+    _INTERRUPT_EVENT.set()
+    if IS_WIN:
+        try:
+            import ctypes
+            ctypes.windll.winmm.mciSendStringW("stop all", None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW("close all", None, 0, 0)
+        except Exception:
+            pass
     with CURRENT_AUDIO_LOCK:
         if CURRENT_AUDIO_PROC and CURRENT_AUDIO_PROC.poll() is None:
             try:
@@ -162,11 +175,22 @@ def is_speaking() -> bool:
         return CURRENT_AUDIO_PROC is not None and CURRENT_AUDIO_PROC.poll() is None
 
 
+def _audio_hash(text: str, voice: str) -> str:
+    """Deterministic hash keyed to both the specific voice model and cleaned text."""
+    return hashlib.sha1(f"{voice}|{text.strip()}".encode()).hexdigest()
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences for low-latency pipelined audio streaming."""
+    raw = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    return raw if raw else ([text.strip()] if text.strip() else [])
+
+
 def fetch_neural_tts(text: str, voice_override: str = None) -> tuple[str, int, bool]:
     """Generate studio-grade neural speech using Edge-TTS (Ryan / Sonia British)."""
     os.makedirs(NEURAL_CACHE_DIR, exist_ok=True)
     voice = voice_override or get_voice()
-    h = hashlib.sha1(f"{voice}|{text}".encode()).hexdigest()
+    h = _audio_hash(text, voice)
     path = os.path.join(NEURAL_CACHE_DIR, f"{h}.mp3")
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return path, 0, True
@@ -183,69 +207,215 @@ def fetch_neural_tts(text: str, voice_override: str = None) -> tuple[str, int, b
         return None, 0, False
 
 
-def fetch_fish_tts(text: str) -> tuple[str, int, bool]:
-    """Generate neural speech using Fish Audio S2.1 Pro."""
-    fish_key = get_secret("FISH_AUDIO_API_KEY")
-    if not fish_key:
-        return None, 0, True
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    path = os.path.join(CACHE_DIR, hashlib.sha1(f"{VOICE_ID}|{text}".encode()).hexdigest() + ".wav")
-    if os.path.exists(path) and os.path.getsize(path) > 0:
-        return path, 0, True
-    t0 = time.time()
+# Prefetch cache: audio_hash -> file_path
+_PREFETCH_CACHE: dict[str, str] = {}
+_PREFETCH_LOCK = threading.Lock()
+
+
+def prefetch_tts(text: str) -> None:
+    """Start generating TTS audio file in a background thread ahead of playback."""
+    cleaned = re.sub(r"\[\w+\]\s*", "", text).strip()
+    if not cleaned:
+        return
+    voice = get_voice()
+    h = _audio_hash(cleaned, voice)
+    with _PREFETCH_LOCK:
+        if h in _PREFETCH_CACHE:
+            return
+
+    def _bg():
+        path, _, _ = fetch_neural_tts(cleaned, voice_override=voice)
+        if path:
+            with _PREFETCH_LOCK:
+                _PREFETCH_CACHE[h] = path
+
+    threading.Thread(target=_bg, daemon=True, name=f"tts-prefetch-{h[:8]}").start()
+
+
+def _play_file_blocking(path: str) -> bool:
+    """Play an audio file blocking until completion or interrupt."""
+    global CURRENT_AUDIO_PROC
+    if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
+        return False
+    if _INTERRUPT_EVENT.is_set():
+        return False
     try:
-        r = requests.post(
-            "https://api.fish.audio/v1/tts",
-            headers={"Authorization": f"Bearer {fish_key}", "model": "s2.1-pro-free"},
-            json={"text": text, "reference_id": VOICE_ID, "format": "wav"},
-            timeout=4.0
-        )
-        r.raise_for_status()
-        with open(path, "wb") as f:
-            f.write(r.content)
-        return path, int((time.time() - t0) * 1000), False
+        with CURRENT_AUDIO_LOCK:
+            if IS_MAC:
+                CURRENT_AUDIO_PROC = subprocess.Popen(["afplay", path])
+            elif IS_WIN:
+                # Windows native MP3 playback via winmm MCI (zero latency, hardware accelerated)
+                try:
+                    import ctypes
+                    alias = f"niko_{int(time.time() * 1000)}"
+                    norm_path = os.path.abspath(path).replace("/", "\\")
+                    res = ctypes.windll.winmm.mciSendStringW(f'open "{norm_path}" type mpegvideo alias {alias}', None, 0, 0)
+                    if res == 0:
+                        ctypes.windll.winmm.mciSendStringW(f'play {alias} wait', None, 0, 0)
+                        ctypes.windll.winmm.mciSendStringW(f'close {alias}', None, 0, 0)
+                        return True
+                except Exception:
+                    pass
+                # Fallback to Windows Media Player COM via PowerShell
+                ps_cmd = (
+                    f"Add-Type -AssemblyName presentationCore; "
+                    f"$p = New-Object System.Windows.Media.MediaPlayer; "
+                    f"$p.Open([System.Uri]'{os.path.abspath(path)}'); "
+                    f"$p.Play(); "
+                    f"Start-Sleep -Milliseconds 400; "
+                    f"while ($p.NaturalDuration.HasTimeSpan -and ($p.Position -lt $p.NaturalDuration.TimeSpan)) {{ Start-Sleep -Milliseconds 80 }}"
+                )
+                CURRENT_AUDIO_PROC = subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd])
+            else:
+                CURRENT_AUDIO_PROC = subprocess.Popen(["aplay", path])
+        if CURRENT_AUDIO_PROC:
+            CURRENT_AUDIO_PROC.wait()
+        return True
+    except Exception as e:
+        print(f"  [Audio Playback Error]: {e}")
+        return False
+    finally:
+        with CURRENT_AUDIO_LOCK:
+            CURRENT_AUDIO_PROC = None
+
+
+def _tts_windows_native(text: str) -> bool:
+    """Speak text on Windows using pyttsx3 (emergency offline fallback only)."""
+    try:
+        import pyttsx3
+        engine = pyttsx3.init()
+        for voice in engine.getProperty("voices"):
+            if "david" in voice.name.lower() or "george" in voice.name.lower() or "uk" in voice.id.lower():
+                engine.setProperty("voice", voice.id)
+                break
+        engine.setProperty("rate", 165)
+        engine.setProperty("volume", 0.95)
+        engine.say(text)
+        engine.runAndWait()
+        return True
     except Exception:
-        return None, 0, False
+        return False
 
 
 def speak(text: str) -> int:
-    """Speak text using Edge-TTS -> Fish Audio -> macOS say fallback."""
+    """Speak text using rich neural Edge-TTS voice (Ryan/Sonia) with streaming sentence pipelining."""
     global CURRENT_AUDIO_PROC
     cleaned = re.sub(r"\[\w+\]\s*", "", text).strip()
     if not cleaned:
         return 0
     t0 = time.time()
+    voice = get_voice()
+    _INTERRUPT_EVENT.clear()
 
-    # 1. Edge-TTS Studio British Voice
-    try:
-        path, ms, cached = fetch_neural_tts(cleaned)
+    # 1. Fast Cache Check: Full text already prefetched or cached on disk (0ms latency)
+    h_full = _audio_hash(cleaned, voice)
+    with _PREFETCH_LOCK:
+        prefetched = _PREFETCH_CACHE.pop(h_full, None)
+    disk_path = os.path.join(NEURAL_CACHE_DIR, f"{h_full}.mp3")
+    cached_path = prefetched if (prefetched and os.path.exists(prefetched)) else (
+        disk_path if os.path.exists(disk_path) and os.path.getsize(disk_path) > 0 else None
+    )
+
+    if cached_path:
+        _play_file_blocking(cached_path)
+        return int((time.time() - t0) * 1000)
+
+    # 2. Neural Generation: Single sentence or sentence-pipelined streaming
+    sentences = _split_sentences(cleaned)
+    if len(sentences) <= 1:
+        path, _, _ = fetch_neural_tts(cleaned, voice_override=voice)
         if path and os.path.exists(path):
-            with CURRENT_AUDIO_LOCK:
-                CURRENT_AUDIO_PROC = subprocess.Popen(["afplay", path])
-            CURRENT_AUDIO_PROC.wait()
-            return ms
-    except Exception:
-        pass
+            _play_file_blocking(path)
+            return int((time.time() - t0) * 1000)
+    else:
+        # Pipelined streaming: start playing sentence 0 as soon as it's ready,
+        # while concurrently pre-fetching subsequent sentences in background
+        audio_queue = queue.Queue()
+        stop_worker = threading.Event()
 
-    # 2. Fish Audio API
-    try:
-        path, ms, cached = fetch_fish_tts(cleaned)
-        if path and os.path.exists(path):
-            with CURRENT_AUDIO_LOCK:
-                CURRENT_AUDIO_PROC = subprocess.Popen(["afplay", path])
-            CURRENT_AUDIO_PROC.wait()
-            return ms
-    except Exception:
-        pass
+        def _worker():
+            for s in sentences[1:]:
+                if stop_worker.is_set() or _INTERRUPT_EVENT.is_set():
+                    break
+                p, _, _ = fetch_neural_tts(s, voice_override=voice)
+                audio_queue.put(p)
+            audio_queue.put(None)
 
-    # 3. macOS native say fallback
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
+        # Generate and play sentence 0 ASAP
+        p0, _, _ = fetch_neural_tts(sentences[0], voice_override=voice)
+        if p0 and os.path.exists(p0):
+            _play_file_blocking(p0)
+            while not _INTERRUPT_EVENT.is_set():
+                p = audio_queue.get()
+                if p is None:
+                    break
+                if p and os.path.exists(p):
+                    _play_file_blocking(p)
+            # Cache the full paragraph in background for instant playback next time
+            threading.Thread(target=fetch_neural_tts, args=(cleaned, voice), daemon=True).start()
+            return int((time.time() - t0) * 1000)
+        else:
+            stop_worker.set()
+
+    # 3. Emergency Offline Fallback (Only if Edge-TTS network request fails completely)
     try:
-        with CURRENT_AUDIO_LOCK:
-            CURRENT_AUDIO_PROC = subprocess.Popen(["say", "-v", MACOS_VOICE, cleaned])
-        CURRENT_AUDIO_PROC.wait()
+        if IS_MAC:
+            with CURRENT_AUDIO_LOCK:
+                CURRENT_AUDIO_PROC = subprocess.Popen(["say", "-v", MACOS_VOICE, cleaned])
+            CURRENT_AUDIO_PROC.wait()
+        elif IS_WIN:
+            _tts_windows_native(cleaned)
+        else:
+            for cmd in (["espeak", cleaned], ["festival", "--tts"]):
+                try:
+                    if cmd[0] == "festival":
+                        subprocess.run(cmd, input=cleaned.encode(), capture_output=True)
+                    else:
+                        subprocess.run(cmd, capture_output=True)
+                    break
+                except Exception:
+                    continue
     except Exception:
         pass
     return int((time.time() - t0) * 1000)
+
+
+def prewarm_common_phrases():
+    """Background pre-warming of frequent responses for 0ms latency."""
+    common = [
+        "Right away, sir.",
+        "Good morning, sir.",
+        "Good afternoon, sir.",
+        "Good evening, sir.",
+        "I'm listening, sir.",
+        "At your command, sir.",
+        "Opening that now, sir.",
+        "Closing that now, sir.",
+        "Playback paused, sir.",
+        "Skipped to next track, sir.",
+        "Workstation locked, sir.",
+        "Understood, sir. I have committed that to memory.",
+        "Screenshot taken and saved to your Desktop, sir.",
+        "Your Mac is currently running on power adapter, sir.",
+        "Trash has been emptied, sir.",
+        "The result is 100, sir.",
+    ]
+    def _bg():
+        time.sleep(1.5)
+        v = get_voice()
+        for phrase in common:
+            try:
+                fetch_neural_tts(phrase, voice_override=v)
+            except Exception:
+                pass
+    threading.Thread(target=_bg, daemon=True, name="tts-prewarm").start()
+
+
+# Start background prewarm immediately on module load
+prewarm_common_phrases()
 
 
 def say(line: str, notify=None):
@@ -335,12 +505,22 @@ class AudioRecorder:
                 self.initial_silent_blocks += 1
 
             if self.on_audio_level:
-                # Dynamic speech level scaled 0.0 to 1.0
-                norm_lvl = min(1.0, max(0.0, (rms - 0.003) / 0.08))
                 try:
-                    self.on_audio_level(norm_lvl)
+                    fft = np.abs(np.fft.rfft(block))
+                    # 16000Hz / 800 = 20Hz per bin
+                    b1 = float(np.mean(fft[4:15]))    # 80-300 Hz (vocal fundamentals / deep vowels)
+                    b2 = float(np.mean(fft[15:40]))   # 300-800 Hz (vowel formants)
+                    b3 = float(np.mean(fft[40:100]))  # 800-2000 Hz (nasals & consonants)
+                    b4 = float(np.mean(fft[100:250])) # 2000-5000 Hz (fricatives & sibilance)
+
+                    l1 = min(1.0, max(0.0, (b1 - 0.003) / 0.14)) ** 0.65
+                    l2 = min(1.0, max(0.0, (b2 - 0.002) / 0.12)) ** 0.65
+                    l3 = min(1.0, max(0.0, (b3 - 0.002) / 0.10)) ** 0.65
+                    l4 = min(1.0, max(0.0, (b4 - 0.001) / 0.07)) ** 0.65
+                    self.on_audio_level((l1, l2, l3, l4))
                 except Exception:
-                    pass
+                    norm_lvl = min(1.0, max(0.0, (rms - 0.002) / 0.04))
+                    self.on_audio_level((norm_lvl, norm_lvl, norm_lvl, norm_lvl))
 
             if self.auto_stop_on_silence:
                 # 16 blocks = 800ms of silence at 50ms blocks

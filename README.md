@@ -1,11 +1,11 @@
-# ⚡ NIKO
-
 <p align="center">
-  <img src="assets/icon.png" alt="NIKO Logo" width="128" height="128" style="border-radius: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+  <img src="assets/logo.png" alt="NIKO Logo" width="140">
 </p>
 
+<h1 align="center">⚡ NIKO</h1>
+
 <p align="center">
-  <strong>The desktop voice assistant that actually does what you tell it to do, instead of searching the web for it.</strong>
+  <strong>The ambient desktop AI operating assistant that actually does what you tell it to do, instead of searching the web for it.</strong>
 </p>
 
 <p align="center">
@@ -14,8 +14,7 @@
   <img src="https://img.shields.io/badge/STT-Offline%20Faster--Whisper-blue?style=flat-square" alt="Faster-Whisper">
   <img src="https://img.shields.io/badge/LLM-NVIDIA%20NIM%20(Llama%203.1)-76B900?style=flat-square&logo=nvidia" alt="NVIDIA NIM">
   <img src="https://img.shields.io/badge/Interface-Dynamic%20Island%20HUD-black?style=flat-square&logo=apple" alt="Dynamic Island">
-  <img src="https://img.shields.io/badge/Hotkey-Push--to--Talk%20(Alt)-orange?style=flat-square" alt="Push-to-Talk">
-  <img src="https://img.shields.io/badge/Cost-Free%20Local%20System%201-success?style=flat-square" alt="Free Cost">
+  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-purple?style=flat-square" alt="MIT License">
 </p>
 
@@ -153,29 +152,47 @@ NIKO decomposes the sentence into atomic tasks, routes each to the fastest engin
 
 ## 🛠️ Installation & Quickstart
 
-### 1. Clone & Set Up Virtualenv
+### ⚡ Option 1: One-Command Quickstart
 
+Clone the repository and launch in one shot:
+
+**macOS / Linux:**
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/niko.git
-cd niko
-
-# Create and activate Python virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install required dependencies
-pip install -r requirements.txt
+git clone https://github.com/subhwastaken/jarvis.git
+cd jarvis
+./install.sh
 ```
 
-### 2. Launch NIKO
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/subhwastaken/jarvis.git
+cd jarvis
+.\install.ps1
+```
 
+The launcher automatically configures the virtual environment, installs dependencies, and boots the Dynamic Island HUD.
+
+---
+
+### 💻 Option 2: Manual Python Setup
+
+**macOS / Linux:**
 ```bash
-# Launch with native Dynamic Island floating HUD
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 python siri.py --ui
 ```
 
-*Note: On first launch, macOS will ask for **Accessibility** and **Microphone** permissions in System Settings -> Privacy & Security. Grant them so NIKO can listen to the Alt key and capture audio.*
+**Windows (PowerShell / Command Prompt):**
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python siri.py --ui
+```
+
+*Note: On first launch, macOS will prompt for **Accessibility** and **Microphone** permissions in System Settings -> Privacy & Security. Grant them so NIKO can listen to the Alt key and capture audio.*
 
 ### 3. Optional: Add NVIDIA NIM for System 2 Reasoning
 For pure OS automation (apps, audio, windows, timers, math), **zero API keys are required**. 

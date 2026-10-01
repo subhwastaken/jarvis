@@ -283,3 +283,47 @@ Output a valid JSON object ONLY, with these exact keys:
         return res, int((time.time() - t0) * 1000)
 
     return "I could not determine the appropriate conditional action, sir.", int((time.time() - t0) * 1000)
+
+
+# ---------------------------------------------------------------------------
+# Public adapter — called from action_dispatcher
+# ---------------------------------------------------------------------------
+
+def execute_plan(user_query: str, executor_fn=None) -> tuple[str, int]:
+    """Entry point called by the main dispatcher.
+
+    Args:
+        user_query:  The raw user command text.
+        executor_fn: Optional callable(task_str) -> str.
+                     If provided, simple multi-step tasks that don't need
+                     the full conditional planner are executed via this
+                     function (which is execute_single_action from the dispatcher).
+                     Conditional / GUI tasks always go through execute_conditional_plan.
+
+    Returns:
+        (reply_text, elapsed_ms)
+    """
+    import time as _time
+    t0 = _time.time()
+
+    # Delegate to the conditional + GUI planner
+    reply, ms = execute_conditional_plan(user_query)
+
+    # If planner returned a generic failure and executor_fn is available,
+    # try breaking the command into steps and running them sequentially.
+    if executor_fn and "could not determine" in reply.lower():
+        steps = [s.strip() for s in re.split(r"\band\s+then\b|\bthen\b", user_query, flags=re.I) if s.strip()]
+        if len(steps) > 1:
+            results = []
+            for step in steps:
+                try:
+                    res = executor_fn(step)
+                    if res:
+                        results.append(res)
+                except Exception as e:
+                    results.append(f"Step failed: {e}")
+            if results:
+                reply = " ".join(results)
+                ms = int((_time.time() - t0) * 1000)
+
+    return reply, ms

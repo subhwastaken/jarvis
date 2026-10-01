@@ -25,53 +25,53 @@
   "recent_history": [
     {
       "role": "user",
-      "content": "Yeah, go to the office.",
-      "timestamp": 1790877465
+      "content": "Open Spotify.",
+      "timestamp": 1790928897
     },
     {
       "role": "assistant",
-      "content": "Searching Google for Yeah, go to the office, sir.",
-      "timestamp": 1790877465
+      "content": "Opening Spotify, sir.",
+      "timestamp": 1790928897
     },
     {
       "role": "user",
-      "content": "Open calculator and perform 13x13.",
-      "timestamp": 1790877557
+      "content": "Open Chrome's body.",
+      "timestamp": 1790928907
     },
     {
       "role": "assistant",
-      "content": "Opening Calculator, sir. I am unable to connect to online intelligence at the moment, sir.",
-      "timestamp": 1790877557
+      "content": "Opening Chrome'S Body, sir.",
+      "timestamp": 1790928907
     },
     {
       "role": "user",
-      "content": "Perform our 10 x 10.",
-      "timestamp": 1790877570
+      "content": "what time is it",
+      "timestamp": 1790930389
     },
     {
       "role": "assistant",
-      "content": "Volume set to 10 percent, sir.",
-      "timestamp": 1790877570
+      "content": "It's currently 10:45 AM, sir.",
+      "timestamp": 1790930389
     },
     {
       "role": "user",
-      "content": "perform 10 x 10",
-      "timestamp": 1790878784
+      "content": "what is 25 * 4",
+      "timestamp": 1790930402
     },
     {
       "role": "assistant",
       "content": "The result is 100, sir.",
-      "timestamp": 1790878784
+      "timestamp": 1790930402
     },
     {
       "role": "user",
-      "content": "who is steve jobs",
-      "timestamp": 1790878817
+      "content": "set volume to 30",
+      "timestamp": 1790930611
     },
     {
       "role": "assistant",
-      "content": "Sir, Steve Jobs was a visionary entrepreneur and inventor who co-founded Apple Inc. and revolutionized the world of technology with innovative products like the Macintosh computer, iPod, iPhone, and iPad.",
-      "timestamp": 1790878817
+      "content": "Volume set to 30 percent, sir.",
+      "timestamp": 1790930611
     }
   ]
 }
