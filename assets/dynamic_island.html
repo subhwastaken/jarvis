@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @property --angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body {
+    background: transparent;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    width: 100vw;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  }
+
+  /* ------------------- DYNAMIC ISLAND PILL CONTAINER ------------------- */
+  .dynamic-island {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 270px;
+    height: 38px;
+    background: #000000;
+    border-radius: 9999px;
+    padding: 0 10px 0 7px;
+    cursor: pointer;
+    box-shadow: 
+      0 12px 30px rgba(0, 0, 0, 0.85),
+      0 0 0 0.5px rgba(255, 255, 255, 0.18),
+      inset 0 1px 1px rgba(255, 255, 255, 0.16);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dynamic-island:hover {
+    box-shadow: 
+      0 16px 36px rgba(0, 0, 0, 0.95),
+      0 0 0 1px rgba(255, 255, 255, 0.26),
+      inset 0 1.2px 1.5px rgba(255, 255, 255, 0.24);
+    transform: scale(1.02);
+  }
+
+  .dynamic-island:active {
+    transform: scale(0.97);
+  }
+
+  /* ------------------- 21ST.DEV SIRI ORB ------------------- */
+  .siri-orb-container {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .siri-orb {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    grid-template-areas: "stack";
+    overflow: hidden;
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 0 14px rgba(120, 119, 198, 0.45);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+
+    /* CSS variables adapted from 21st.dev siri-orb for 24px */
+    --bg: oklch(95% 0.02 264.695);
+    --c1: oklch(75% 0.15 350);
+    --c2: oklch(80% 0.12 200);
+    --c3: oklch(78% 0.14 280);
+    --animation-duration: 16s;
+    --blur-amount: 1.5px;
+    --contrast-amount: 1.2;
+    --dot-size: 0.1px;
+    --shadow-spread: 0.8px;
+  }
+
+  .siri-orb::before,
+  .siri-orb::after {
+    content: "";
+    display: block;
+    grid-area: stack;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+  }
+
+  .siri-orb::before {
+    background:
+      conic-gradient(
+        from calc(var(--angle) * 2) at 25% 70%,
+        var(--c3),
+        transparent 20% 80%,
+        var(--c3)
+      ),
+      conic-gradient(
+        from calc(var(--angle) * 2) at 45% 75%,
+        var(--c2),
+        transparent 30% 60%,
+        var(--c2)
+      ),
+      conic-gradient(
+        from calc(var(--angle) * -3) at 80% 20%,
+        var(--c1),
+        transparent 40% 60%,
+        var(--c1)
+      ),
+      conic-gradient(
+        from calc(var(--angle) * 2) at 15% 5%,
+        var(--c2),
+        transparent 10% 90%,
+        var(--c2)
+      ),
+      conic-gradient(
+        from calc(var(--angle) * 1) at 20% 80%,
+        var(--c1),
+        transparent 10% 90%,
+        var(--c1)
+      ),
+      conic-gradient(
+        from calc(var(--angle) * -2) at 85% 10%,
+        var(--c3),
+        transparent 20% 80%,
+        var(--c3)
+      );
+    box-shadow: inset var(--bg) 0 0 var(--shadow-spread) calc(var(--shadow-spread) * 0.2);
+    filter: blur(var(--blur-amount)) contrast(var(--contrast-amount));
+    animation: rotate var(--animation-duration) linear infinite;
+  }
+
+  .siri-orb::after {
+    background-image: radial-gradient(
+      circle at center,
+      var(--bg) var(--dot-size),
+      transparent var(--dot-size)
+    );
+    background-size: calc(var(--dot-size) * 2) calc(var(--dot-size) * 2);
+    backdrop-filter: blur(calc(var(--blur-amount) * 1.5)) contrast(calc(var(--contrast-amount) * 1.3));
+    mix-blend-mode: overlay;
+  }
+
+  @keyframes rotate {
+    to {
+      --angle: 360deg;
+    }
+  }
+
+  /* ------------------- CENTER TEXT CONTENT ------------------- */
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 10px;
+    min-width: 0;
+  }
+
+  .title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.35px;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
+  }
+
+  .subtitle {
+    font-size: 9px;
+    font-weight: 400;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
+  }
+
+  /* ------------------- SPEECH REACTIVE SOUND WAVES (RIGHT) ------------------- */
+  .sound-waves {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2.5px;
+    height: 24px;
+    padding-right: 4px;
+    flex-shrink: 0;
+  }
+
+  .wave-bar {
+    width: 3px;
+    height: 4px;
+    min-height: 3px;
+    background: #475569;
+    border-radius: 9999px;
+    transition: height 0.05s ease-out, background-color 0.25s ease;
+  }
+
+  /* ------------------- ASSISTANT STATES ------------------- */
+
+  /* Listening State (Vibrant Cyan / Magenta) */
+  body.state-listening .dynamic-island {
+    box-shadow: 
+      0 12px 32px rgba(0, 0, 0, 0.85),
+      0 0 0 1px rgba(56, 189, 248, 0.4),
+      0 0 20px rgba(56, 189, 248, 0.25);
+  }
+
+  body.state-listening .siri-orb {
+    transform: scale(1.12);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.8), 0 0 26px rgba(244, 63, 94, 0.5);
+    --animation-duration: 4s;
+    --c1: oklch(75% 0.22 355);
+    --c2: oklch(85% 0.18 195);
+    --c3: oklch(75% 0.2 270);
+  }
+
+  body.state-listening .title {
+    color: #38bdf8;
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+  }
+
+  body.state-listening .wave-bar {
+    background: linear-gradient(180deg, #38bdf8, #818cf8);
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.45);
+  }
+
+  /* Thinking State (Deep Violet / Electric Indigo) */
+  body.state-thinking .dynamic-island {
+    box-shadow: 
+      0 12px 32px rgba(0, 0, 0, 0.85),
+      0 0 0 1px rgba(168, 85, 247, 0.4),
+      0 0 20px rgba(168, 85, 247, 0.25);
+  }
+
+  body.state-thinking .siri-orb {
+    transform: scale(1.08);
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.7), 0 0 24px rgba(217, 70, 239, 0.5);
+    --animation-duration: 2.5s;
+    --c1: oklch(70% 0.24 300);
+    --c2: oklch(75% 0.2 260);
+    --c3: oklch(80% 0.18 340);
+  }
+
+  body.state-thinking .title {
+    color: #c084fc;
+    text-shadow: 0 0 8px rgba(192, 132, 252, 0.5);
+  }
+
+  body.state-thinking .wave-bar {
+    background: #c084fc;
+    box-shadow: 0 0 6px rgba(192, 132, 252, 0.4);
+    animation: wave-pulse 0.75s infinite alternate ease-in-out;
+  }
+  body.state-thinking .wave-bar:nth-child(1) { animation-delay: 0.0s; }
+  body.state-thinking .wave-bar:nth-child(2) { animation-delay: 0.15s; }
+  body.state-thinking .wave-bar:nth-child(3) { animation-delay: 0.30s; }
+  body.state-thinking .wave-bar:nth-child(4) { animation-delay: 0.45s; }
+  body.state-thinking .wave-bar:nth-child(5) { animation-delay: 0.60s; }
+
+  /* Speaking State (Apple Intelligence Emerald / Cyan) */
+  body.state-speaking .dynamic-island {
+    box-shadow: 
+      0 12px 32px rgba(0, 0, 0, 0.85),
+      0 0 0 1px rgba(52, 211, 153, 0.4),
+      0 0 20px rgba(52, 211, 153, 0.25);
+  }
+
+  body.state-speaking .siri-orb {
+    transform: scale(1.1);
+    box-shadow: 0 0 18px rgba(52, 211, 153, 0.7), 0 0 24px rgba(56, 189, 248, 0.5);
+    --animation-duration: 5s;
+    --c1: oklch(80% 0.18 160);
+    --c2: oklch(82% 0.16 200);
+    --c3: oklch(85% 0.15 130);
+  }
+
+  body.state-speaking .title {
+    color: #34d399;
+    text-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+  }
+
+  body.state-speaking .wave-bar {
+    background: #34d399;
+    box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+    animation: wave-dance 0.45s infinite alternate ease-in-out;
+  }
+  body.state-speaking .wave-bar:nth-child(1) { animation-delay: 0.0s; }
+  body.state-speaking .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+  body.state-speaking .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+  body.state-speaking .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+  body.state-speaking .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+  @keyframes wave-dance {
+    0% { height: 4px; }
+    50% { height: 16px; }
+    100% { height: 6px; }
+  }
+
+  @keyframes wave-pulse {
+    0% { height: 3px; opacity: 0.35; }
+    100% { height: 11px; opacity: 1.0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="dynamic-island" id="island" onclick="handlePillClick()">
+  <!-- LEFT: 21st.dev Siri Orb -->
+  <div class="siri-orb-container">
+    <div class="siri-orb" id="orb"></div>
+  </div>
+
+  <!-- CENTER: Dynamic Assistant Status & Speech Detail -->
+  <div class="content">
+    <div class="title" id="title">NIKO</div>
+    <div class="subtitle" id="subtitle">Hold Alt to talk</div>
+  </div>
+
+  <!-- RIGHT: Speech Reactive Equalizer Waves (No sensor dot) -->
+  <div class="sound-waves" id="waves">
+    <div class="wave-bar" id="wb1"></div>
+    <div class="wave-bar" id="wb2"></div>
+    <div class="wave-bar" id="wb3"></div>
+    <div class="wave-bar" id="wb4"></div>
+    <div class="wave-bar" id="wb5"></div>
+  </div>
+</div>
+
+<script>
+  function handlePillClick() {
+    try {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.assistant) {
+        window.webkit.messageHandlers.assistant.postMessage("click");
+      }
+    } catch(e) {}
+  }
+
+  function updateAudioLevel(lvl) {
+    if (!document.body.classList.contains("state-listening")) return;
+    const b1 = document.getElementById("wb1");
+    const b2 = document.getElementById("wb2");
+    const b3 = document.getElementById("wb3");
+    const b4 = document.getElementById("wb4");
+    const b5 = document.getElementById("wb5");
+    if (!b1 || !b2 || !b3 || !b4 || !b5) return;
+
+    // Direct speech reactive amplitudes
+    const clamped = Math.max(0.0, Math.min(1.0, lvl));
+    b1.style.height = Math.round(3 + clamped * 12) + "px";
+    b2.style.height = Math.round(4 + clamped * 19) + "px";
+    b3.style.height = Math.round(4 + clamped * 23) + "px";
+    b4.style.height = Math.round(4 + clamped * 18) + "px";
+    b5.style.height = Math.round(3 + clamped * 11) + "px";
+  }
+
+  function updateAssistantState(state, detail) {
+    const body = document.body;
+    const titleEl = document.getElementById("title");
+    const subtitleEl = document.getElementById("subtitle");
+
+    body.className = "";
+    const cleanState = (state || "Ready").toLowerCase();
+
+    // Reset explicit heights on all bars so CSS animations or default heights apply
+    const bars = [document.getElementById("wb1"), document.getElementById("wb2"), document.getElementById("wb3"), document.getElementById("wb4"), document.getElementById("wb5")];
+    bars.forEach(b => { if (b) b.style.height = ""; });
+
+    if (cleanState.includes("listen")) {
+      body.classList.add("state-listening");
+      titleEl.innerText = "LISTENING";
+      subtitleEl.innerText = detail || "Release Alt to send";
+    } else if (cleanState.includes("think") || cleanState.includes("doing") || cleanState.includes("transcrib")) {
+      body.classList.add("state-thinking");
+      titleEl.innerText = "THINKING";
+      subtitleEl.innerText = detail || "Processing request…";
+    } else if (cleanState.includes("speak")) {
+      body.classList.add("state-speaking");
+      titleEl.innerText = "SPEAKING";
+      subtitleEl.innerText = detail || "Press Alt to pause speech";
+    } else {
+      titleEl.innerText = "NIKO";
+      subtitleEl.innerText = detail || "Hold Alt to talk";
+    }
+  }
+</script>
+
+</body>
+</html>
